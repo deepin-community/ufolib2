@@ -1,0 +1,145 @@
+ufolib2 (0.11.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.11.1+dfsg1
+  * debian/copyright: Add license of Mutator Sans
+  * debian/control: Update dependencies
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Mon, 18 Jan 2021 21:10:54 +0800
+
+ufolib2 (0.10.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.10.1+dfsg1
+  * debian/control: update dependencies
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sun, 20 Dec 2020 23:08:51 +0800
+
+ufolib2 (0.10.0+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.10.0+dfsg1
+  * debian/control:
+    - Use debhelper 13
+    - Bump Standards-Version to 4.5.1.  No change is needed.
+    - Update dependencies
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sat, 28 Nov 2020 15:09:49 +0800
+
+ufolib2 (0.8.0+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.8.0+dfsg1
+  * debian/control: Update dependencies
+  * debian/rules: disable tests using Ubuntu fonts
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sat, 22 Aug 2020 22:50:59 +0800
+
+ufolib2 (0.7.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.7.1+dfsg1
+  * Update python3-fonttools dependency
+  * Update skipped tests using Ubuntu fonts
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Fri, 29 May 2020 22:27:32 +0800
+
+ufolib2 (0.6.3a1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.6.3a1+dfsg1
+  * debian/watch: Allow alphabets in version number
+  * Update dependencies
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Mon, 06 Apr 2020 00:33:27 +0800
+
+ufolib2 (0.6.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.6.1+dfsg1
+  * d/control: Update dependencies
+  * d/control: Bump Standards-Version to 4.5.0
+  * debian/rules: Skip more tests with Ubuntu font
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Mon, 02 Mar 2020 00:50:15 +0800
+
+ufolib2 (0.5.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.5.1+dfsg1
+  * debian/control: Update dependencies
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sun, 01 Dec 2019 12:42:55 +0800
+
+ufolib2 (0.5.0+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.5.0+dfsg1
+  * d/control: Bump Standards-Version to 4.4.1
+  * d/rules: Skip another test with Ubuntu fonts
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Wed, 06 Nov 2019 23:27:14 +0800
+
+ufolib2 (0.4.1+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.4.1+dfsg1
+  * d/salsa-ci.yml: Add packaging CI pipeline
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sun, 03 Nov 2019 12:39:35 +0800
+
+ufolib2 (0.4.0+dfsg1-3) unstable; urgency=medium
+
+  * Source-only re-upload (Closes: #941223)
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Fri, 27 Sep 2019 09:38:09 +0800
+
+ufolib2 (0.4.0+dfsg1-2) unstable; urgency=medium
+
+  * debian/control:
+    - Bump debhelper-compat to 12
+    - Remove Testsuite because module name is different to the package name
+      (Closes: #940795)
+  * debian/rules:
+    - debian/rules: Add PYBUILD_NAME
+    - Use PYBUILD_TEST_ARGS instead of overriding dh_auto_test
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Fri, 20 Sep 2019 13:00:47 +0800
+
+ufolib2 (0.4.0+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.4.0+dfsg1
+  * Update dependencies
+  * Use dh_auto_test override instead of patching to skip certain tests
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Sun, 08 Sep 2019 12:37:42 +0800
+
+ufolib2 (0.3.2+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.3.2+dfsg1
+  * Bump Standards-Version to 4.4.0
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Thu, 18 Jul 2019 10:58:03 -0300
+
+ufolib2 (0.3.0+dfsg1-1) unstable; urgency=medium
+
+  * New upstream version 0.3.2+dfsg1
+  * Skip tests and strip files related to non DFSG-free files.
+  * debian/tests/control:
+    - because of case-sensitivity of the library name, we have to specify the
+      name of the library for the test.
+  * debian/control:
+    - Remove Testsuite field.
+  * debian/copyright: Skip .gitattributes due to conflict with gbp.
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Wed, 09 Jan 2019 21:07:06 +0800
+
+ufolib2 (0.2.1-1) unstable; urgency=medium
+
+  [ Jelmer Vernooĳ ]
+  * Use secure copyright file specification URI.
+
+  [ Yao Wei (魏銘廷) ]
+  * New upstream release 0.2.1
+  * debian/control:
+    - Update dependencies.
+    - Update uploader's email.
+    - Add autopkgtest.
+
+ -- Yao Wei (魏銘廷) <mwei@debian.org>  Thu, 13 Dec 2018 22:11:12 +0800
+
+ufolib2 (0.1.3-1) unstable; urgency=medium
+
+  * Initial release. Closes: #901765
+
+ -- Yao Wei (魏銘廷) <mwei@lxde.org>  Mon, 10 Sep 2018 23:43:46 +0800
