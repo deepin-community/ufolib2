@@ -9,11 +9,26 @@ export PYBUILD_NAME = ufoLib2
 
 # skip tests with Ubuntu font which is not distributable in Debian main
 # repository.
-export PYBUILD_TEST_ARGS = -k "not lazy_data_loading_ and not copyDataFromGlyph and not test_appendContour and not test_constructor_from_path and not test_deepcopy_lazy_object and not test_unlazify and not test_font_ and not test_nondefault_layer_name and not test_bounds"
+export PYBUILD_TEST_ARGS = -k "not test_lazy_data_loading_ \
+	and not test_font_eq_and_ne \
+	and not test_copyDataFromGlyph \
+	and not test_appendContour \
+	and not test_font_mapping_behavior \
+	and not test_font_defcon_behavior \
+	and not test_nondefault_layer_name \
+	and not test_layer_order \
+	and not test_bounds \
+	and not test_deepcopy_lazy_object \
+	and not test_unlazify \
+	and not test_auto_unlazify_ \
+	and not test_font_equality \
+	and not test_unstructure_lazy_font \
+	and not test_dumps_loads \
+	and not test_dump_load \
+	and not test_not_allow_bytes \
+	and not test_allow_bytes \
+	and not test_pickle_lazy_font \
+	and not test_indent_not_2_orjson"
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
-
-override_dh_clean:
-	dh_clean
-	rm src/ufoLib2/_version.py

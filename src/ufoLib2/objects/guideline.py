@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 from typing import Optional
 
-import attr
+from attrs import define
 
 from ufoLib2.objects.misc import AttrDictMixin
+from ufoLib2.serde import serde
 
 
-@attr.s(auto_attribs=True, slots=True)
+@serde
+@define
 class Guideline(AttrDictMixin):
     """Represents a single guideline.
 

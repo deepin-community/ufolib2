@@ -1,10 +1,12 @@
-from typing import List
+from __future__ import annotations
 
 from fontTools.ufoLib import UFOReader, UFOWriter
 
 from ufoLib2.objects.misc import DataStore
+from ufoLib2.serde import serde
 
 
+@serde
 class ImageSet(DataStore):
     """Represents a mapping of POSIX filename strings to arbitrary image data.
 
@@ -27,14 +29,14 @@ class ImageSet(DataStore):
     """
 
     @staticmethod
-    def list_contents(reader: UFOReader) -> List[str]:
+    def list_contents(reader: UFOReader) -> list[str]:
         """Returns a list of POSIX filename strings in the image data store."""
-        return reader.getImageDirectoryListing()
+        return reader.getImageDirectoryListing()  # type: ignore
 
     @staticmethod
     def read_data(reader: UFOReader, filename: str) -> bytes:
         """Returns the image data at filename within the store."""
-        return reader.readImage(filename)
+        return reader.readImage(filename)  # type: ignore
 
     @staticmethod
     def write_data(writer: UFOWriter, filename: str, data: bytes) -> None:

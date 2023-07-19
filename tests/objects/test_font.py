@@ -1,7 +1,15 @@
+from __future__ import annotations
+
+import pickle
+from pathlib import Path
+from typing import Optional
+
+import pytest
+
 from ufoLib2.objects import Font, Glyph, Guideline
 
 
-def test_font_equality(datadir):
+def test_font_equality(datadir: Path) -> None:
     font1 = Font.open(datadir / "UbuTestData.ufo")
     font2 = Font.open(datadir / "UbuTestData.ufo")
 
@@ -14,7 +22,7 @@ def test_font_equality(datadir):
     assert font1 != font3
 
 
-def test_font_mapping_behavior(ufo_UbuTestData):
+def test_font_mapping_behavior(ufo_UbuTestData: Font) -> None:
     font = ufo_UbuTestData
 
     assert font["a"] is font.layers.defaultLayer["a"]
@@ -31,7 +39,7 @@ def test_font_mapping_behavior(ufo_UbuTestData):
     assert "a" not in font.layers.defaultLayer
 
 
-def test_font_defcon_behavior(ufo_UbuTestData):
+def test_font_defcon_behavior(ufo_UbuTestData: Font) -> None:
     font = ufo_UbuTestData
 
     font.newGlyph("b")
@@ -47,6 +55,7 @@ def test_font_defcon_behavior(ufo_UbuTestData):
 
     guideline = Guideline(x=1)
     font.appendGuideline(guideline)
+    assert font.info.guidelines is not None
     assert font.info.guidelines[-1] is guideline
 
     font.appendGuideline({"y": 1, "name": "asdf"})
@@ -60,7 +69,7 @@ def test_font_defcon_behavior(ufo_UbuTestData):
     assert "def" in font.layers
 
 
-def test_nondefault_layer_name(ufo_UbuTestData, tmp_path):
+def test_nondefault_layer_name(ufo_UbuTestData: Font, tmp_path: Path) -> None:
     font = ufo_UbuTestData
 
     font.layers.renameLayer("public.default", "abc")
@@ -71,8 +80,60 @@ def test_nondefault_layer_name(ufo_UbuTestData, tmp_path):
     assert font2.layers.defaultLayer is font2.layers["abc"]
 
 
-def test_bounds(ufo_UbuTestData, tmp_path):
+def test_layer_order(ufo_UbuTestData: Font) -> None:
+    font = ufo_UbuTestData
+
+    assert font.layers.layerOrder == ["public.default", "public.background"]
+    font.layers.layerOrder = ["public.background", "public.default"]
+    assert font.layers.layerOrder == ["public.background", "public.default"]
+
+
+def test_bounds(ufo_UbuTestData: Font) -> None:
     font = ufo_UbuTestData
 
     assert font.bounds == (8, -11, 655, 693)
     assert font.controlPointBounds == (8, -11, 655, 693)
+
+
+def test_data_images_init() -> None:
+    font = Font(
+        data={"aaa": b"123", "bbb/c": b"456"},
+        images={"a.png": b"\x89PNG\r\n\x1a\n", "b.png": b"\x89PNG\r\n\x1a\n"},
+    )
+
+    assert font.data["aaa"] == b"123"
+    assert font.data["bbb/c"] == b"456"
+    assert font.images["a.png"] == b"\x89PNG\r\n\x1a\n"
+    assert font.images["b.png"] == b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.parametrize(
+    "lazy", [None, False, True], ids=["lazy-unset", "non-lazy", "lazy"]
+)
+def test_pickle_lazy_font(datadir: Path, lazy: Optional[bool]) -> None:
+    if lazy is not None:
+        font = Font.open(datadir / "UbuTestData.ufo", lazy=lazy)
+    else:
+        # lazy is None by default for a Font that is not opened from a file
+        # but created from scratch
+        font = Font()
+
+    assert lazy is font._lazy
+
+    data = pickle.dumps(font)
+
+    assert isinstance(data, bytes) and len(data) > 0
+
+    # picklying unlazifies
+    if lazy:
+        assert font._lazy is False
+    else:
+        assert font._lazy is lazy
+
+    font2 = pickle.loads(data)
+
+    assert isinstance(font2, Font)
+    assert font == font2
+    # unpickling doesn't initialize the lazy flag or a reader, which reset to default
+    assert font2._lazy is None
+    assert font2._reader is None

@@ -1,23 +1,27 @@
+from __future__ import annotations
+
 import collections.abc
 import uuid
 from abc import abstractmethod
 from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
+from functools import lru_cache
 from typing import (
+    TYPE_CHECKING,
     Any,
     Dict,
     Iterator,
-    List,
     NamedTuple,
     Optional,
     Sequence,
     Set,
     Type,
     TypeVar,
-    Union,
+    cast,
 )
 
-import attr
+import attrs
+from attrs import define, field
 from fontTools.misc.arrayTools import unionRect
 from fontTools.misc.transform import Transform
 from fontTools.pens.boundsPen import BoundsPen, ControlBoundsPen
@@ -25,6 +29,13 @@ from fontTools.ufoLib import UFOReader, UFOWriter
 
 from ufoLib2.constants import OBJECT_LIBS_KEY
 from ufoLib2.typing import Drawable, GlyphSet, HasIdentifier
+
+if TYPE_CHECKING:
+    # Importing 'AttrsInstance' from 'attr' instead of 'attrs' namespace because
+    # v22.1.0 is missing the symbol: https://github.com/python-attrs/attrs/issues/987
+    # from attrs import AttrsInstance
+    from attr import AttrsInstance
+    from cattrs import Converter
 
 
 class BoundingBox(NamedTuple):
@@ -36,7 +47,7 @@ class BoundingBox(NamedTuple):
     yMax: float
 
 
-def getBounds(drawable: Drawable, layer: Optional[GlyphSet]) -> Optional[BoundingBox]:
+def getBounds(drawable: Drawable, layer: GlyphSet | None) -> BoundingBox | None:
     pen = BoundsPen(layer)
     # raise 'KeyError' when a referenced component is missing from glyph set
     pen.skipMissingComponents = False
@@ -44,9 +55,7 @@ def getBounds(drawable: Drawable, layer: Optional[GlyphSet]) -> Optional[Boundin
     return None if pen.bounds is None else BoundingBox(*pen.bounds)
 
 
-def getControlBounds(
-    drawable: Drawable, layer: Optional[GlyphSet]
-) -> Optional[BoundingBox]:
+def getControlBounds(drawable: Drawable, layer: GlyphSet | None) -> BoundingBox | None:
     pen = ControlBoundsPen(layer)
     # raise 'KeyError' when a referenced component is missing from glyph set
     pen.skipMissingComponents = False
@@ -55,8 +64,8 @@ def getControlBounds(
 
 
 def unionBounds(
-    bounds1: Optional[BoundingBox], bounds2: Optional[BoundingBox]
-) -> Optional[BoundingBox]:
+    bounds1: BoundingBox | None, bounds2: BoundingBox | None
+) -> BoundingBox | None:
     if bounds1 is None:
         return bounds2
     if bounds2 is None:
@@ -65,40 +74,64 @@ def unionBounds(
 
 
 def _deepcopy_unlazify_attrs(self: Any, memo: Any) -> Any:
-    if getattr(self, "_lazy", True) and hasattr(self, "unlazify"):
+    if self._lazy:
         self.unlazify()
     return self.__class__(
         **{
             (a.name if a.name[0] != "_" else a.name[1:]): deepcopy(
                 getattr(self, a.name), memo
             )
-            for a in attr.fields(self.__class__)
-            if a.init and a.metadata.get("copyable", True)
+            for a in attrs.fields(self.__class__)
+            if a.init
         },
     )
 
 
-def _object_lib(parent_lib: Dict[str, Any], object: HasIdentifier) -> Dict[str, Any]:
-    if object.identifier is None:
+def _getstate_unlazify_attrs(self: Any) -> Dict[str, Any]:
+    if self._lazy:
+        self.unlazify()
+    return {
+        a.name: getattr(self, a.name) if a.init else a.default
+        for a in attrs.fields(self.__class__)
+    }
+
+
+_obj_setattr = object.__setattr__
+
+
+# Since we override __getstate__, we must also override __setstate__.
+# Below is adapted from `attrs._make._ClassBuilder._make_getstate_setstate` method:
+# https://github.com/python-attrs/attrs/blob/36ed0204/src/attr/_make.py#L931-L937
+def _setstate_attrs(self: Any, state: Dict[str, Any]) -> None:
+    _bound_setattr = _obj_setattr.__get__(self, attrs.Attribute)  # type: ignore
+    for a in attrs.fields(self.__class__):
+        if a.name in state:
+            _bound_setattr(a.name, state[a.name])
+
+
+def _object_lib(parent_lib: dict[str, Any], obj: HasIdentifier) -> dict[str, Any]:
+    if obj.identifier is None:
         # Use UUID4 because it allows us to set a new identifier without
         # checking if it's already used anywhere else and be right most
         # of the time.
-        object.identifier = str(uuid.uuid4())
+        obj.identifier = str(uuid.uuid4())
 
-    object_libs: Dict[str, Any]
+    object_libs: dict[str, Any]
     if "public.objectLibs" not in parent_lib:
         object_libs = parent_lib["public.objectLibs"] = {}
     else:
         object_libs = parent_lib["public.objectLibs"]
         assert isinstance(object_libs, collections.abc.MutableMapping)
 
-    if object.identifier in object_libs:
-        return object_libs[object.identifier]
-    lib = object_libs[object.identifier] = {}
+    if obj.identifier in object_libs:
+        object_lib: dict[str, Any] = object_libs[obj.identifier]
+        return object_lib
+    lib: dict[str, Any] = {}
+    object_libs[obj.identifier] = lib
     return lib
 
 
-def _prune_object_libs(parent_lib: Dict[str, Any], identifiers: Set[str]) -> None:
+def _prune_object_libs(parent_lib: dict[str, Any], identifiers: set[str]) -> None:
     """Prune non-existing objects and empty libs from a lib's
     public.objectLibs.
 
@@ -114,48 +147,78 @@ def _prune_object_libs(parent_lib: Dict[str, Any], identifiers: Set[str]) -> Non
     }
 
 
-class Placeholder:
-    """Represents a sentinel value to signal a "lazy" object hasn't been loaded yet."""
+class DataPlaceholder(bytes):
+    """Represents a sentinel value to signal a "lazy" DataSet item hasn't been loaded yet."""
 
 
-_NOT_LOADED = Placeholder()
+_DATA_NOT_LOADED = DataPlaceholder(b"__UFOLIB2_DATA_NOT_LOADED__")
 
 
 # Create a generic variable for mypy that can be 'DataStore' or any subclass.
 Tds = TypeVar("Tds", bound="DataStore")
 
 
-@attr.s(auto_attribs=True, slots=True, repr=False)
-class DataStore(MutableMapping):
+# For Python 3.7 compatibility.
+if TYPE_CHECKING:
+    DataStoreMapping = MutableMapping[str, bytes]
+else:
+    DataStoreMapping = MutableMapping
+
+
+@define
+class DataStore(DataStoreMapping):
     """Represents the base class for ImageSet and DataSet.
 
     Both behave like a dictionary that loads its "values" lazily by default and only
     differ in which reader and writer methods they call.
     """
 
-    _data: Dict[str, Union[bytes, Placeholder]] = attr.ib(factory=dict)
+    _data: Dict[str, bytes] = field(factory=dict)
 
-    _reader: Optional[UFOReader] = attr.ib(
-        default=None, init=False, repr=False, eq=False
+    _lazy: Optional[bool] = field(default=False, kw_only=True, eq=False, init=False)
+    _reader: Optional[UFOReader] = field(default=None, init=False, repr=False, eq=False)
+    _scheduledForDeletion: Set[str] = field(
+        factory=set, init=False, repr=False, eq=False
     )
-    _scheduledForDeletion: Set[str] = attr.ib(factory=set, init=False, repr=False)
+
+    def __eq__(self, other: object) -> bool:
+        # same as attrs-defined __eq__ method, only that it un-lazifies DataStores
+        # if needed.
+        # NOTE: Avoid isinstance check that mypy recognizes because we don't want to
+        # test possible Font subclasses for equality.
+        if other.__class__ is not self.__class__:
+            return NotImplemented
+        other = cast(DataStore, other)
+
+        for data_store in (self, other):
+            if data_store._lazy:
+                data_store.unlazify()
+
+        return self._data == other._data
+
+    def __ne__(self, other: object) -> bool:
+        result = self.__eq__(other)
+        if result is NotImplemented:
+            return NotImplemented
+        return not result
 
     @classmethod
-    def read(cls: Type[Tds], reader: UFOReader, lazy: bool = True) -> Tds:
+    def read(cls: type[Tds], reader: UFOReader, lazy: bool = True) -> Tds:
         """Instantiate the data store from a :class:`fontTools.ufoLib.UFOReader`."""
         self = cls()
         for fileName in cls.list_contents(reader):
             if lazy:
-                self._data[fileName] = _NOT_LOADED
+                self._data[fileName] = _DATA_NOT_LOADED
             else:
                 self._data[fileName] = cls.read_data(reader, fileName)
+        self._lazy = lazy
         if lazy:
             self._reader = reader
         return self
 
     @staticmethod
     @abstractmethod
-    def list_contents(reader: UFOReader) -> List[str]:
+    def list_contents(reader: UFOReader) -> list[str]:
         """Returns a list of POSIX filename strings in the data store."""
         ...
 
@@ -179,10 +242,15 @@ class DataStore(MutableMapping):
 
     def unlazify(self) -> None:
         """Load all data into memory."""
-        for _ in self.items():
-            pass
+        if self._lazy and self._reader is not None:
+            for _ in self.items():
+                pass
+        self._lazy = False
 
     __deepcopy__ = _deepcopy_unlazify_attrs
+
+    __getstate__ = _getstate_unlazify_attrs
+    __setstate__ = _setstate_attrs
 
     # MutableMapping methods
 
@@ -194,7 +262,7 @@ class DataStore(MutableMapping):
 
     def __getitem__(self, fileName: str) -> bytes:
         data_object = self._data[fileName]
-        if isinstance(data_object, Placeholder):
+        if data_object is _DATA_NOT_LOADED:
             data_object = self._data[fileName] = self.read_data(self._reader, fileName)
         return data_object
 
@@ -217,7 +285,7 @@ class DataStore(MutableMapping):
             hex(id(self)),
         )
 
-    def write(self, writer: UFOWriter, saveAs: Optional[bool] = None) -> None:
+    def write(self, writer: UFOWriter, saveAs: bool | None = None) -> None:
         """Write the data store to a :class:`fontTools.ufoLib.UFOWriter`."""
         if saveAs is None:
             saveAs = self._reader is not writer
@@ -232,7 +300,7 @@ class DataStore(MutableMapping):
             #    might be modified.
             # 2) We save elsewhere. Load all data files to write them back out.
             # XXX: Move write_data into `if saveAs` branch to simplify code?
-            if isinstance(data, Placeholder):
+            if data is _DATA_NOT_LOADED:
                 if saveAs:
                     data = self.read_data(self._reader, fileName)
                     self._data[fileName] = data
@@ -245,36 +313,123 @@ class DataStore(MutableMapping):
             self._reader = None
 
     @property
-    def fileNames(self) -> List[str]:
+    def fileNames(self) -> list[str]:
         """Returns a list of filenames in the data store."""
         return list(self._data.keys())
 
+    def _unstructure(self, converter: Converter) -> dict[str, str]:
+        # avoid encoding if converter supports bytes natively
+        test = converter.unstructure(b"\0")
+        if isinstance(test, bytes):
+            # mypy complains that 'Argument 1 to "dict" has incompatible type
+            # "DataStore"; expected "SupportsKeysAndGetItem[str, Dict[str, str]]"'.
+            # We _are_ a subclass of Mapping so we do support keys and getitem...
+            return dict(self)  # type: ignore
+        elif not isinstance(test, str):
+            raise NotImplementedError(type(test))
 
-class AttrDictMixin(Mapping):
+        data: dict[str, str] = {k: converter.unstructure(v) for k, v in self.items()}
+        # since we unpacked all data by now, we're no longer lazy
+        if self._lazy:
+            self._lazy = False
+        return data
+
+    @staticmethod
+    def _structure(
+        data: Mapping[str, Any],
+        cls: Type[DataStore],
+        converter: Converter,
+    ) -> DataStore:
+        self = cls()
+        for k, v in data.items():
+            if isinstance(v, str):
+                self[k] = converter.structure(v, bytes)
+            elif isinstance(v, bytes):
+                self[k] = v
+            else:
+                raise TypeError(
+                    f"Expected (base64) str or bytes, found: {type(v).__name__!r}"
+                )
+        return self
+
+
+# For Python 3.7 compatibility.
+if TYPE_CHECKING:
+    AttrDictMixinMapping = Mapping[str, Any]
+else:
+    AttrDictMixinMapping = Mapping
+
+
+_T = TypeVar("_T", bound="AttrDictMixin")
+
+
+class AttrDictMixin(AttrDictMixinMapping):
     """Read attribute values using mapping interface.
 
-    For use with Anchors and Guidelines classes, where client code
+    For use with Anchors, Guidelines and WoffMetadata classes, where client code
     expects them to behave as dict.
     """
 
     # XXX: Use generics?
 
-    def __getitem__(self, key: str) -> Any:
-        try:
-            return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+    @classmethod
+    @lru_cache(maxsize=None)
+    def _key_to_attr_map(
+        cls: Type[AttrsInstance], reverse: bool = False
+    ) -> dict[str, str]:
+        result = {}
+        for a in attrs.fields(cls):
+            attr_name = a.name
+            key = attr_name
+            if "rename_attr" in a.metadata:
+                key = a.metadata["rename_attr"]
+            if reverse:
+                result[attr_name] = key
+            else:
+                result[key] = attr_name
+        return result
 
-    def __iter__(self) -> Iterator[Any]:
-        for key in attr.fields_dict(self.__class__):
-            if getattr(self, key) is not None:
-                yield key
+    def __getitem__(self, key: str) -> Any:
+        attr_name = self._key_to_attr_map()[key]
+        try:
+            value = getattr(self, attr_name)
+        except AttributeError as e:
+            raise KeyError(key) from e
+        if value is None:
+            raise KeyError(key)
+        return value
+
+    def __iter__(self) -> Iterator[str]:
+        key_map = self._key_to_attr_map(reverse=True)
+        cls = cast("Type[AttrsInstance]", self.__class__)
+        for attr_name in attrs.fields_dict(cls):
+            if getattr(self, attr_name) is not None:
+                yield key_map[attr_name]
 
     def __len__(self) -> int:
         return sum(1 for _ in self)
 
+    @classmethod
+    def coerce_from_dict(cls: Type[_T], value: _T | Mapping[str, Any]) -> _T:
+        if isinstance(value, cls):
+            return value
+        elif isinstance(value, Mapping):
+            attr_map = cls._key_to_attr_map()
+            return cls(**{attr_map[k]: v for k, v in value.items()})
+        raise TypeError(
+            f"Expected {cls.__name__} or mapping, found: {type(value).__name__}"
+        )
 
-def _convert_transform(t: Union[Transform, Sequence[float]]) -> Transform:
+    @classmethod
+    def coerce_from_optional_dict(
+        cls: Type[_T], value: _T | Mapping[str, Any] | None
+    ) -> _T | None:
+        if value is None:
+            return None
+        return cls.coerce_from_dict(value)
+
+
+def _convert_transform(t: Transform | Sequence[float]) -> Transform:
     """Return a passed-in Transform as is, otherwise convert a sequence of
     numbers to a Transform if need be."""
     return t if isinstance(t, Transform) else Transform(*t)

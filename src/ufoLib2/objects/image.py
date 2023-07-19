@@ -1,14 +1,25 @@
-from collections.abc import Mapping
-from typing import Any, Iterator, Optional, Tuple
+from __future__ import annotations
 
-import attr
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Tuple
+
+from attrs import define, field
 from fontTools.misc.transform import Identity, Transform
+
+from ufoLib2.serde import serde
 
 from .misc import _convert_transform
 
+# For Python 3.7 compatibility.
+if TYPE_CHECKING:
+    ImageMapping = Mapping[str, Any]
+else:
+    ImageMapping = Mapping
 
-@attr.s(auto_attribs=True, slots=True)
-class Image(Mapping):
+
+@serde
+@define
+class Image(ImageMapping):
     """Represents a background image reference.
 
     See http://unifiedfontobject.org/versions/ufo3/images/ and
@@ -18,7 +29,7 @@ class Image(Mapping):
     fileName: Optional[str] = None
     """The filename of the image."""
 
-    transformation: Transform = attr.ib(default=Identity, converter=_convert_transform)
+    transformation: Transform = field(default=Identity, converter=_convert_transform)
     """The affine transformation applied to the image."""
 
     color: Optional[str] = None
@@ -38,7 +49,7 @@ class Image(Mapping):
     # the fontTools.ufoLib.validators.imageValidator requires that image is a
     # subclass of Mapping...
 
-    _transformation_keys_: Tuple[str, str, str, str, str, str] = (
+    _transformation_keys_: ClassVar[Tuple[str, str, str, str, str, str]] = (
         "xScale",
         "xyScale",
         "yxScale",
@@ -46,7 +57,7 @@ class Image(Mapping):
         "xOffset",
         "yOffset",
     )
-    _valid_keys_: Tuple[str, str, str, str, str, str, str, str] = (
+    _valid_keys_: ClassVar[Tuple[str, str, str, str, str, str, str, str]] = (
         "fileName",
         *_transformation_keys_,
         "color",

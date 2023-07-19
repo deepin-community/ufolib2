@@ -1,9 +1,14 @@
-from typing import Optional, Tuple
+from __future__ import annotations
 
-import attr
+from typing import Optional
+
+from attrs import define
+
+from ufoLib2.serde import serde
 
 
-@attr.s(auto_attribs=True, slots=True)
+@serde
+@define
 class Point:
     """Represents a single point.
 
@@ -36,14 +41,14 @@ class Point:
     # XXX: Add post_init to check spec-mandated invariants?
 
     @property
-    def segmentType(self) -> Optional[str]:
+    def segmentType(self) -> str | None:
         """Returns the type of the point.
 
         |defcon_compat|
         """
         return self.type
 
-    def move(self, delta: Tuple[float, float]) -> None:
+    def move(self, delta: tuple[float, float]) -> None:
         """Moves point by (x, y) font units."""
         x, y = delta
         self.x += x

@@ -1,11 +1,15 @@
-from typing import Optional, Tuple
+from __future__ import annotations
 
-import attr
+from typing import Optional
+
+from attrs import define
 
 from ufoLib2.objects.misc import AttrDictMixin
+from ufoLib2.serde import serde
 
 
-@attr.s(auto_attribs=True, slots=True)
+@serde
+@define
 class Anchor(AttrDictMixin):
     """Represents a single anchor.
 
@@ -27,7 +31,7 @@ class Anchor(AttrDictMixin):
     identifier: Optional[str] = None
     """The globally unique identifier of the anchor."""
 
-    def move(self, delta: Tuple[float, float]) -> None:
+    def move(self, delta: tuple[float, float]) -> None:
         """Moves anchor by (x, y) font units."""
         x, y = delta
         self.x += x
