@@ -1,7 +1,9 @@
-from copy import deepcopy
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from __future__ import annotations
 
-import attr
+from copy import deepcopy
+from typing import Any, Iterator, List, Mapping, Optional, cast
+
+from attrs import define, field
 from fontTools.misc.transform import Transform
 from fontTools.pens.basePen import AbstractPen
 from fontTools.pens.pointPen import (
@@ -15,12 +17,15 @@ from ufoLib2.objects.component import Component
 from ufoLib2.objects.contour import Contour
 from ufoLib2.objects.guideline import Guideline
 from ufoLib2.objects.image import Image
+from ufoLib2.objects.lib import Lib, _convert_Lib, _get_lib, _set_lib
 from ufoLib2.objects.misc import BoundingBox, _object_lib, getBounds, getControlBounds
 from ufoLib2.pointPens.glyphPointPen import GlyphPointPen
+from ufoLib2.serde import serde
 from ufoLib2.typing import GlyphSet, HasIdentifier
 
 
-@attr.s(auto_attribs=True, slots=True, repr=False)
+@serde
+@define
 class Glyph:
     """Represents a glyph, containing contours, components, anchors and various
     other bits of data concerning it.
@@ -58,26 +63,26 @@ class Glyph:
     height: float = 0
     """The height of the glyph."""
 
-    unicodes: List[int] = attr.ib(factory=list)
+    unicodes: List[int] = field(factory=list)
     """The Unicode code points assigned to the glyph. Note that a glyph can have
     multiple."""
 
-    _image: Image = attr.ib(factory=Image)
+    _image: Image = field(factory=Image)
 
-    lib: Dict[str, Any] = attr.ib(factory=dict)
+    _lib: Lib = field(factory=Lib, converter=_convert_Lib)
     """The glyph's mapping of string keys to arbitrary data."""
 
     note: Optional[str] = None
     """A free form text note about the glyph."""
 
-    _anchors: List[Anchor] = attr.ib(factory=list)
-    components: List[Component] = attr.ib(factory=list)
+    _anchors: List[Anchor] = field(factory=list)
+    components: List[Component] = field(factory=list)
     """The list of components the glyph contains."""
 
-    contours: List[Contour] = attr.ib(factory=list)
+    contours: List[Contour] = field(factory=list)
     """The list of contours the glyph contains."""
 
-    _guidelines: List[Guideline] = attr.ib(factory=list)
+    _guidelines: List[Guideline] = field(factory=list)
 
     def __len__(self) -> int:
         return len(self.contours)
@@ -99,8 +104,10 @@ class Glyph:
             hex(id(self)),
         )
 
+    lib = property(_get_lib, _set_lib)
+
     @property
-    def anchors(self) -> List[Anchor]:
+    def anchors(self) -> list[Anchor]:
         """The list of anchors the glyph contains.
 
         Getter:
@@ -113,13 +120,13 @@ class Glyph:
         return self._anchors
 
     @anchors.setter
-    def anchors(self, value: List[Anchor]) -> None:
+    def anchors(self, value: list[Anchor]) -> None:
         self.clearAnchors()
         for anchor in value:
             self.appendAnchor(anchor)
 
     @property
-    def guidelines(self) -> List[Guideline]:
+    def guidelines(self) -> list[Guideline]:
         """The list of guidelines the glyph contains.
 
         Getter:
@@ -132,18 +139,18 @@ class Glyph:
         return self._guidelines
 
     @guidelines.setter
-    def guidelines(self, value: List[Guideline]) -> None:
+    def guidelines(self, value: list[Guideline]) -> None:
         self.clearGuidelines()
         for guideline in value:
             self.appendGuideline(guideline)
 
     @property
-    def name(self) -> Optional[str]:
+    def name(self) -> str | None:
         """The name of the glyph."""
         return self._name
 
     @property
-    def unicode(self) -> Optional[int]:
+    def unicode(self) -> int | None:
         """The first assigned Unicode code point or None.
 
         See http://unifiedfontobject.org/versions/ufo3/glyphs/glif/#unicode.
@@ -158,7 +165,7 @@ class Glyph:
         return None
 
     @unicode.setter
-    def unicode(self, value: Optional[int]) -> None:
+    def unicode(self, value: int | None) -> None:
         if value is None:
             self.unicodes = []
         else:
@@ -185,7 +192,7 @@ class Glyph:
         return self._image
 
     @image.setter
-    def image(self, image: Optional[Union[Image, Mapping[str, Any]]]) -> None:
+    def image(self, image: Image | Mapping[str, Any] | None) -> None:
         if image is None:
             self._image.clear()
         elif isinstance(image, Image):
@@ -204,7 +211,7 @@ class Glyph:
                 color=image.get("color"),
             )
 
-    def objectLib(self, object: HasIdentifier) -> Dict[str, Any]:
+    def objectLib(self, object: HasIdentifier) -> dict[str, Any]:
         """Return the lib for an object with an identifier, as stored in a glyph's lib.
 
         If the object does not yet have an identifier, a new one is assigned to it. If
@@ -255,7 +262,7 @@ class Glyph:
         """Removes :class:`.Component` object from the glyph's list of components."""
         self.components.remove(component)
 
-    def appendAnchor(self, anchor: Union[Anchor, Mapping[str, Any]]) -> None:
+    def appendAnchor(self, anchor: Anchor | Mapping[str, Any]) -> None:
         """Appends an :class:`.Anchor` object to glyph's list of anchors.
 
         Args:
@@ -270,7 +277,7 @@ class Glyph:
             anchor = Anchor(**anchor)
         self.anchors.append(anchor)
 
-    def appendGuideline(self, guideline: Union[Guideline, Mapping[str, Any]]) -> None:
+    def appendGuideline(self, guideline: Guideline | Mapping[str, Any]) -> None:
         """Appends a :class:`.Guideline` object to glyph's list of guidelines.
 
         Args:
@@ -292,7 +299,7 @@ class Glyph:
             raise TypeError(f"Expected Contour, found {type(contour).__name__}")
         self.contours.append(contour)
 
-    def copy(self, name: Optional[str] = None) -> "Glyph":
+    def copy(self, name: str | None = None) -> Glyph:
         """Returns a new Glyph (deep) copy, optionally override the new glyph
         name."""
         other = deepcopy(self)
@@ -300,7 +307,7 @@ class Glyph:
             other._name = name
         return other
 
-    def copyDataFromGlyph(self, glyph: "Glyph") -> None:
+    def copyDataFromGlyph(self, glyph: Glyph) -> None:
         """Deep-copies everything from the other glyph into self, except for
         the name.
 
@@ -323,7 +330,7 @@ class Glyph:
         pointPen = self.getPointPen()
         glyph.drawPoints(pointPen)
 
-    def move(self, delta: Tuple[float, float]) -> None:
+    def move(self, delta: tuple[float, float]) -> None:
         """Moves all contours, components and anchors by (x, y) font units."""
         for contour in self.contours:
             contour.move(delta)
@@ -362,7 +369,7 @@ class Glyph:
     # lib wrapped attributes
 
     @property
-    def markColor(self) -> Optional[str]:
+    def markColor(self) -> str | None:
         """The color assigned to the glyph.
 
         See http://unifiedfontobject.org/versions/ufo3/glyphs/glif/#publicmarkcolor.
@@ -374,17 +381,17 @@ class Glyph:
             Sets the mark color. If value is None, deletes the key from the lib if
             present.
         """
-        return self.lib.get("public.markColor")
+        return cast(Optional[str], self.lib.get("public.markColor"))
 
     @markColor.setter
-    def markColor(self, value: Optional[str]) -> None:
+    def markColor(self, value: str | None) -> None:
         if value is not None:
             self.lib["public.markColor"] = value
         elif "public.markColor" in self.lib:
             del self.lib["public.markColor"]
 
     @property
-    def verticalOrigin(self) -> Optional[float]:
+    def verticalOrigin(self) -> float | None:
         """The vertical origin of the glyph.
 
         See http://unifiedfontobject.org/versions/ufo3/glyphs/glif/#publicverticalorigin.
@@ -396,10 +403,10 @@ class Glyph:
             Sets the vertical origin. If value is None, deletes the key from the lib if
             present.
         """
-        return self.lib.get("public.verticalOrigin")
+        return cast(Optional[float], self.lib.get("public.verticalOrigin"))
 
     @verticalOrigin.setter
-    def verticalOrigin(self, value: Optional[float]) -> None:
+    def verticalOrigin(self, value: float | None) -> None:
         if value is not None:
             self.lib["public.verticalOrigin"] = value
         elif "public.verticalOrigin" in self.lib:
@@ -407,7 +414,7 @@ class Glyph:
 
     # bounds and side-bearings
 
-    def getBounds(self, layer: Optional[GlyphSet] = None) -> Optional[BoundingBox]:
+    def getBounds(self, layer: GlyphSet | None = None) -> BoundingBox | None:
         """Returns the (xMin, yMin, xMax, yMax) bounding box of the glyph,
         taking the actual contours into account.
 
@@ -420,9 +427,7 @@ class Glyph:
 
         return getBounds(self, layer)
 
-    def getControlBounds(
-        self, layer: Optional[GlyphSet] = None
-    ) -> Optional[BoundingBox]:
+    def getControlBounds(self, layer: GlyphSet | None = None) -> BoundingBox | None:
         """Returns the (xMin, yMin, xMax, yMax) bounding box of the glyph,
         taking only the control points into account.
 
@@ -435,7 +440,7 @@ class Glyph:
 
         return getControlBounds(self, layer)
 
-    def getLeftMargin(self, layer: Optional[GlyphSet] = None) -> Optional[float]:
+    def getLeftMargin(self, layer: GlyphSet | None = None) -> float | None:
         """Returns the the space in font units from the point of origin to the
         left side of the glyph.
 
@@ -448,7 +453,7 @@ class Glyph:
             return None
         return bounds.xMin
 
-    def setLeftMargin(self, value: float, layer: Optional[GlyphSet] = None) -> None:
+    def setLeftMargin(self, value: float, layer: GlyphSet | None = None) -> None:
         """Sets the the space in font units from the point of origin to the
         left side of the glyph.
 
@@ -465,7 +470,7 @@ class Glyph:
             self.width += diff
             self.move((diff, 0))
 
-    def getRightMargin(self, layer: Optional[GlyphSet] = None) -> Optional[float]:
+    def getRightMargin(self, layer: GlyphSet | None = None) -> float | None:
         """Returns the the space in font units from the glyph's advance width
         to the right side of the glyph.
 
@@ -478,7 +483,7 @@ class Glyph:
             return None
         return self.width - bounds.xMax
 
-    def setRightMargin(self, value: float, layer: Optional[GlyphSet] = None) -> None:
+    def setRightMargin(self, value: float, layer: GlyphSet | None = None) -> None:
         """Sets the the space in font units from the glyph's advance width to
         the right side of the glyph.
 
@@ -492,7 +497,7 @@ class Glyph:
             return None
         self.width = bounds.xMax + value
 
-    def getBottomMargin(self, layer: Optional[GlyphSet] = None) -> Optional[float]:
+    def getBottomMargin(self, layer: GlyphSet | None = None) -> float | None:
         """Returns the the space in font units from the bottom of the canvas to
         the bottom of the glyph.
 
@@ -508,7 +513,7 @@ class Glyph:
         else:
             return bounds.yMin - (self.verticalOrigin - self.height)
 
-    def setBottomMargin(self, value: float, layer: Optional[GlyphSet] = None) -> None:
+    def setBottomMargin(self, value: float, layer: GlyphSet | None = None) -> None:
         """Sets the the space in font units from the bottom of the canvas to
         the bottom of the glyph.
 
@@ -530,7 +535,7 @@ class Glyph:
         if diff:
             self.height += diff
 
-    def getTopMargin(self, layer: Optional[GlyphSet] = None) -> Optional[float]:
+    def getTopMargin(self, layer: GlyphSet | None = None) -> float | None:
         """Returns the the space in font units from the top of the canvas to
         the top of the glyph.
 
@@ -546,7 +551,7 @@ class Glyph:
         else:
             return self.verticalOrigin - bounds.yMax
 
-    def setTopMargin(self, value: float, layer: Optional[GlyphSet] = None) -> None:
+    def setTopMargin(self, value: float, layer: GlyphSet | None = None) -> None:
         """Sets the the space in font units from the top of the canvas to the
         top of the glyph.
 
