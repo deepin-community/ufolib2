@@ -1,3 +1,10 @@
+ufolib2 (0.16.0+dfsg1-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release 0.16.0+dfsg1.
+
+ -- Boyuan Yang <byang@debian.org>  Sun, 08 Oct 2023 15:50:56 -0400
+
 ufolib2 (0.14.0+dfsg1-1) unstable; urgency=high
 
   * Team upload.
