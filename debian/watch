@@ -1,4 +1,4 @@
 version=4
 opts="dversionmangle=s/\+dfsg\d*$//,repacksuffix=+dfsg1" \
-https://github.com/fonttools/ufoLib2/releases \
+https://github.com/fonttools/ufoLib2/tags \
  .*/v([0-9][0-9a-z\.]*)@ARCHIVE_EXT@
